@@ -85,6 +85,7 @@ typedef struct RestPayload_ {
  */
 typedef struct Artifact_ {
         gchar *name;                  /**< name of software */
+        gchar *part;                  /**< type of software: OS or App */
         gchar *version;               /**< software version */
         gint64 size;                  /**< size of software bundle file */
         gchar *download_url;          /**< download URL of software bundle file */
@@ -101,6 +102,7 @@ struct on_new_software_userdata {
         GSourceFunc install_progress_callback;  /**< callback function to be called when new progress */
         GSourceFunc install_complete_callback;  /**< callback function to be called when installation is complete */
         gchar *file;                            /**< downloaded new software file */
+        gchar *sw_type;                         /**< type of  new software bundle: APP or OS */        
         gchar *auth_header;                     /**< authentication header for bundle streaming */
         gboolean ssl_verify;                    /**< whether to ignore server cert verification errors */
         gboolean install_success;               /**< whether the installation succeeded or not (only meaningful for run_once mode!) */
@@ -111,6 +113,7 @@ struct on_new_software_userdata {
  */
 struct on_install_complete_userdata {
         gboolean install_success;               /**< status of installation */
+        gboolean need_os_reboot;                /**< additional parameter if it is necessary to call a reboot after OS bundle install*/
 };
 
 /**

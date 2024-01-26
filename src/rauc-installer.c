@@ -200,7 +200,7 @@ notify_complete:
         return NULL;
 }
 
-gboolean rauc_install(const gchar *bundle, const gchar *auth_header, gboolean ssl_verify,
+gboolean rauc_install(const gchar *bundle, const gchar *sw_type, const gchar *auth_header, gboolean ssl_verify,
                       GSourceFunc on_install_notify, GSourceFunc on_install_complete,
                       gboolean wait)
 {
@@ -212,6 +212,7 @@ gboolean rauc_install(const gchar *bundle, const gchar *auth_header, gboolean ss
         loop_context = g_main_context_new();
         context = install_context_new();
         context->bundle = g_strdup(bundle);
+        context->bundle_type = get_bundle_type(sw_type);
         context->auth_header = g_strdup(auth_header);
         context->ssl_verify = ssl_verify;
         context->notify_event = on_install_notify;
@@ -239,4 +240,13 @@ gboolean rauc_install(const gchar *bundle, const gchar *auth_header, gboolean ss
 
         // return immediately if we did not wait for the install thread
         return TRUE;
+}
+
+enum BundleType get_bundle_type(const gchar *part) {
+    if (g_strcmp0(part, "os") == 0) {
+        return BUNDLE_TYPE_OS;
+    } else if (g_strcmp0(part, "bApp") == 0) {
+        return BUNDLE_TYPE_APP;
+    }
+    return BUNDLE_TYPE_APP; 
 }

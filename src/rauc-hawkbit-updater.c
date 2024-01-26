@@ -83,6 +83,7 @@ static gboolean on_rauc_install_complete_cb(gpointer data)
         g_return_val_if_fail(data, G_SOURCE_REMOVE);
 
         userdata.install_success = (context->status_result == 0);
+        userdata.need_os_reboot = (context->bundle_type == BUNDLE_TYPE_OS);
 
         // notify hawkbit about install result
         notify_hawkbit_install_complete(&userdata);
@@ -105,7 +106,7 @@ static gboolean on_new_software_ready_cb(gpointer data)
 
         notify_hawkbit_install_progress = userdata->install_progress_callback;
         notify_hawkbit_install_complete = userdata->install_complete_callback;
-        userdata->install_success = rauc_install(userdata->file, userdata->auth_header,
+        userdata->install_success = rauc_install(userdata->file, userdata->sw_type, userdata->auth_header,
                                                  userdata->ssl_verify,
                                                  on_rauc_install_progress_cb,
                                                  on_rauc_install_complete_cb, run_once);

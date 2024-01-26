@@ -815,8 +815,20 @@ gboolean install_complete_cb(gpointer ptr)
 
         if (result->install_success && hawkbit_config->post_update_reboot) {
                 sync();
-                if (reboot(RB_AUTOBOOT) < 0)
-                        g_critical("Failed to reboot: %s", g_strerror(errno));
+                if (result->need_os_reboot) {
+#ifdef WITH_SYSTEMD
+                        // Asynchronous launch systemctl reboot
+                        if (!g_spawn_command_line_async("systemctl reboot", &error)) {
+                                g_critical("Failed to reboot: %s", g_strerror(error->message));
+                                g_clear_error(&error);
+                        }
+                        g_message("System reboot initiated\n");
+#else
+                        if (reboot(RB_AUTOBOOT) < 0)
+                                g_critical("Failed to reboot: %s", g_strerror(errno));
+#endif
+
+                }
         }
 
         return G_SOURCE_REMOVE;
@@ -834,17 +846,20 @@ gboolean install_complete_cb(gpointer ptr)
  */
 static gpointer download_thread(gpointer data)
 {
+        g_autoptr(GError) error = NULL, feedback_error = NULL;
+        g_autofree gchar *msg = NULL, *sha1sum = NULL;
+        g_autoptr(Artifact) artifact = data;
+
         struct on_new_software_userdata userdata = {
                 .install_progress_callback = (GSourceFunc) hawkbit_progress,
                 .install_complete_callback = install_complete_cb,
                 .file = hawkbit_config->bundle_download_location,
+                .sw_type = artifact->part,
                 .auth_header = NULL,
                 .ssl_verify = hawkbit_config->ssl_verify,
                 .install_success = FALSE,
         };
-        g_autoptr(GError) error = NULL, feedback_error = NULL;
-        g_autofree gchar *msg = NULL, *sha1sum = NULL;
-        g_autoptr(Artifact) artifact = data;
+
         curl_off_t speed;
 
         g_return_val_if_fail(data, NULL);
@@ -993,6 +1008,7 @@ static gboolean start_streaming_installation(Artifact *artifact, GError **error)
                 .install_progress_callback = (GSourceFunc) hawkbit_progress,
                 .install_complete_callback = install_complete_cb,
                 .file = artifact->download_url,
+                .sw_type = artifact->part,
                 .auth_header = auth_header,
                 .ssl_verify = hawkbit_config->ssl_verify,
                 .install_success = FALSE,
@@ -1151,6 +1167,11 @@ static gboolean process_deployment(JsonNode *req_root, GError **error)
         json_artifact = json_array_get_element(json_artifacts, 0);
 
         // get artifact information
+        artifact->part = json_get_string(json_chunk, "$.part", error);
+        if (!artifact->part)
+                goto proc_error;
+
+
         artifact->version = json_get_string(json_chunk, "$.version", error);
         if (!artifact->version)
                 goto proc_error;
@@ -1178,8 +1199,10 @@ static gboolean process_deployment(JsonNode *req_root, GError **error)
                 goto proc_error;
         }
 
-        g_message("New software ready for download (Name: %s, Version: %s, Size: %" G_GINT64_FORMAT " bytes, URL: %s)",
-                  artifact->name, artifact->version, artifact->size, artifact->download_url);
+        g_message("New software ready for download (Type: %s, Name: %s, Version: %s, Size: %" G_GINT64_FORMAT " bytes, URL: %s)",
+                  artifact->part, artifact->name, artifact->version, artifact->size, artifact->download_url);
+
+        // hawkbit_config->post_update_reboot = hawkbit_config->post_update_reboot && (g_strcmp0(artifact->part, "os") == 0);
 
         // stream_bundle path exits early
         if (hawkbit_config->stream_bundle)
@@ -1494,6 +1517,7 @@ void artifact_free(Artifact *artifact)
                 return;
 
         g_free(artifact->name);
+        g_free(artifact->part);
         g_free(artifact->version);
         g_free(artifact->download_url);
         g_free(artifact->feedback_url);

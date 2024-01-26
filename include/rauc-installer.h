@@ -8,11 +8,17 @@
 
 #include <glib.h>
 
+enum BundleType {
+        BUNDLE_TYPE_OS,
+        BUNDLE_TYPE_APP
+};
+
 /**
  * @brief struct that contains the context of an Rauc installation.
  */
 struct install_context {
         gchar *bundle;                /**< Rauc bundle file to install */
+        enum BundleType bundle_type;      /**< type of the software bundle: APP or OS */                
         gchar *auth_header;           /**< Authentication header for bundle streaming */
         gboolean ssl_verify;          /**< Whether to ignore server cert verification errors */
         GSourceFunc notify_event;     /**< Callback function */
@@ -24,6 +30,17 @@ struct install_context {
         GMainContext *loop_context;   /**< GMainContext for the GMainLoop */
         gboolean keep_install_context; /**< Whether the installation thread should free this struct or keep it */
 };
+
+/** @brief Converts the string representation of the update package type to the 
+  * corresponding BundleType enumeration value.
+  *
+  * @param[in] part A string representing the update package type. Expected values: "os" or "bApp"
+  *
+  * @return BundleType The enum value corresponding to the passed string. 
+  *         Returns BUNDLE_TYPE_APP by default if the string does not match the expected values.
+  */
+enum BundleType get_bundle_type(const gchar *part);
+
 
 /**
  * @brief RAUC install bundle
@@ -40,7 +57,7 @@ struct install_context {
  * @return for wait=TRUE, TRUE if installation succeeded, FALSE otherwise; for
  *         wait=FALSE TRUE is always returned immediately
  */
-gboolean rauc_install(const gchar *bundle, const gchar *auth_header, gboolean ssl_verify,
+gboolean rauc_install(const gchar *bundle, const gchar *sw_type, const gchar *auth_header, gboolean ssl_verify,
                 GSourceFunc on_install_notify, GSourceFunc on_install_complete, gboolean wait);
 
 #endif // __RAUC_INSTALLER_H__
