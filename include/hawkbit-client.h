@@ -85,6 +85,7 @@ typedef struct RestPayload_ {
  */
 typedef struct Artifact_ {
         gchar *name;                  /**< name of software */
+        gchar *filename;              /**< filename of bundle */
         gchar *part;                  /**< type of software: OS or App */
         gchar *version;               /**< software version */
         gint64 size;                  /**< size of software bundle file */

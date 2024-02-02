@@ -129,7 +129,7 @@ static gboolean get_available_space(const char *path, goffset *free_space, GErro
         *free_space = (goffset) stat.f_bsize * (goffset) stat.f_bavail;
         return TRUE;
 }
-
+		
 /**
  * @brief Calculate checksum for file.
  *
@@ -1060,6 +1060,7 @@ static gboolean process_deployment(JsonNode *req_root, GError **error)
         g_autofree gchar *deployment = NULL, *temp_id = NULL,
                          *deployment_download = NULL, *deployment_update = NULL,
                          *maintenance_window = NULL, *maintenance_msg = NULL;
+        gchar** tokens = NULL; 
         g_autoptr(JsonParser) json_response_parser = NULL;
         g_autoptr(JsonArray) json_chunks = NULL, json_artifacts = NULL;
         JsonNode *resp_root = NULL, *json_chunk = NULL, *json_artifact = NULL;
@@ -1167,17 +1168,45 @@ static gboolean process_deployment(JsonNode *req_root, GError **error)
         json_artifact = json_array_get_element(json_artifacts, 0);
 
         // get artifact information
+
+        // Option to extract bundle type from Hawkbit server response
+        /*
         artifact->part = json_get_string(json_chunk, "$.part", error);
         if (!artifact->part)
                 goto proc_error;
-
-
+        */
+		
         artifact->version = json_get_string(json_chunk, "$.version", error);
         if (!artifact->version)
                 goto proc_error;
 
         artifact->name = json_get_string(json_chunk, "$.name", error);
         if (!artifact->name)
+                goto proc_error;
+
+        // Option to extract bundle type from file name
+        artifact->filename = json_get_string(json_artifact, "$.filename", error);
+        if (!artifact->filename) {
+                goto proc_error;
+        }
+
+        tokens = g_strsplit(artifact->filename, "_", -1);
+        if (g_strv_length(tokens) >= 3) {
+                const gchar* bundleType = tokens[2];
+                if (g_strcmp0(bundleType, "system") == 0) {
+                        artifact->part = g_strdup("os");
+                } else if (g_strcmp0(bundleType, "application") == 0) {
+                        artifact->part = g_strdup("bApp");
+                } else {
+                        g_warning("BundleType '%s' in filename '%s' is not 'system' or 'application'", bundleType, artifact->filename);
+                        artifact->part = g_strdup("bApp");
+                }
+        } else {
+                g_warning("File name '%s' does not match the expected pattern <project-name>_<bundle-name>_<bundle-type>_<version>.raucb", artifact->filename);
+                artifact->part = g_strdup("bApp");
+        }
+        g_strfreev(tokens);
+        if (!artifact->part)
                 goto proc_error;
 
         artifact->size = json_get_int(json_artifact, "$.size", error);
@@ -1202,6 +1231,10 @@ static gboolean process_deployment(JsonNode *req_root, GError **error)
         g_message("New software ready for download (Type: %s, Name: %s, Version: %s, Size: %" G_GINT64_FORMAT " bytes, URL: %s)",
                   artifact->part, artifact->name, artifact->version, artifact->size, artifact->download_url);
 
+
+        // An alternative simpler solution to determine the need to reboot 
+        // depending on the type of bundle, but conceptually less correct:
+        // 
         // hawkbit_config->post_update_reboot = hawkbit_config->post_update_reboot && (g_strcmp0(artifact->part, "os") == 0);
 
         // stream_bundle path exits early
